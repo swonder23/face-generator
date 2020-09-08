@@ -45,9 +45,6 @@ def get_dataloader(batch_size, image_size, data_dir='processed_celeba_small/'):
 batch_size = 50
 img_size = 32
 
-"""
-DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
-"""
 # Call your function and get a dataloader
 celeba_train_loader = get_dataloader(batch_size, img_size)
 
@@ -57,9 +54,6 @@ def imshow(img):
     npimg = img.numpy()
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
 
-"""
-DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
-"""
 # obtain one batch of training images
 dataiter = iter(celeba_train_loader)
 images, _ = dataiter.next() # _ for no labels
@@ -82,10 +76,6 @@ def scale(x, feature_range=(-1, 1)):
     x = x * (max - min) + min
     return x    
 
-
-"""
-DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
-"""
 # check scaled range
 # should be close to -1 to 1
 img = images[0]
@@ -170,13 +160,7 @@ class Discriminator(nn.Module):
         out = self.fc(out)        
         return out
 
-
-"""
-DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
-"""
 tests.test_discriminator(Discriminator)
-
-
 
 
 
@@ -239,9 +223,102 @@ class Generator(nn.Module):
         
         return out
 
-"""
-DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
-"""
 tests.test_generator(Generator)
+
+
+
+def weights_init_normal(m):
+    """
+    Applies initial weights to certain layers in a model .
+    The weights are taken from a normal distribution 
+    with mean = 0, std dev = 0.02.
+    :param m: A module or layer in a network    
+    """
+    classname = m.__class__.__name__
+    if hasattr(m, 'weight') and (classname.find('Conv') != -1 or classname.find('Linear') != -1):
+        nn.init.normal_(m.weight.data, 0.0, 0.02)
+        if hasattr(m, 'bias') and m.bias is not None:
+            nn.init.constant_(m.bias.data, 0.0)
+    elif classname.find('BatchNorm2d') != -1:  # BatchNorm Layer's weight is not a matrix; only normal distribution applies.
+        nn.init.normal_(m.weight.data, 1.0, 0.02)
+        nn.init.constant_(m.bias.data, 0.0) 
+
+
+def build_network(d_conv_dim, g_conv_dim, z_size):
+    # define discriminator and generator
+    D = Discriminator(d_conv_dim)
+    G = Generator(z_size=z_size, conv_dim=g_conv_dim)
+
+    # initialize model weights
+    D.apply(weights_init_normal)
+    G.apply(weights_init_normal)
+
+    print(D)
+    print()
+    print(G)
+    
+    return D, G
+
+
+# Define model hyperparams
+d_conv_dim = 32
+g_conv_dim = 32
+z_size = 100
+
+D, G = build_network(d_conv_dim, g_conv_dim, z_size)
+
+
+
+
+train_on_gpu = False
+
+def real_loss(D_out, smooth=False):
+    '''Calculates how close discriminator outputs are to being real.
+       param, D_out: discriminator logits
+       return: real loss'''
+    batch_size = D_out.size(0)
+    # label smoothing
+    if smooth:
+        # smooth, real labels = 0.9
+        labels = torch.ones(batch_size)*0.9
+    else:
+        labels = torch.ones(batch_size) # real labels = 1
+    # move labels to GPU if available     
+    if train_on_gpu:
+        labels = labels.cuda()
+    # binary cross entropy with logits loss
+    criterion = nn.BCEWithLogitsLoss()
+    # calculate loss
+    loss = criterion(D_out.squeeze(), labels)
+    return loss
+
+def fake_loss(D_out):
+    '''Calculates how close discriminator outputs are to being fake.
+       param, D_out: discriminator logits
+       return: fake loss'''
+    batch_size = D_out.size(0)
+    labels = torch.zeros(batch_size) # fake labels = 0
+    if train_on_gpu:
+        labels = labels.cuda()
+    criterion = nn.BCEWithLogitsLoss()
+    # calculate loss
+    loss = criterion(D_out.squeeze(), labels)
+    return loss
+
+
+
+import torch.optim as optim
+
+# params
+lr = 0.0002
+beta1=0.5
+beta2=0.999 # default value
+
+# Create optimizers for the discriminator D and generator G
+d_optimizer = optim.Adam(D.parameters(), lr, [beta1, beta2])
+g_optimizer = optim.Adam(G.parameters(), lr, [beta1, beta2])
+
+
+
 
 
